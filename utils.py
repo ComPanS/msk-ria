@@ -218,56 +218,41 @@ async def publish_to_wordpress(
 
 
 async def upload_image_to_wordpress(image_url):
-    """Загрузка изображения на WordPress через Playwright и прокси (асинхронно)"""
+    """Асинхронная загрузка изображения в WordPress через Playwright."""
     try:
         if not image_url:
-            print("[DEBUG] Нет изображения для загрузки.")
+            logging.warning("Нет изображения для загрузки.")
             return None, None
 
-        # Прокси-сервер
-        proxy = {
-            "server": "http://163.5.39.69:2966",
-            "username": "user215587",
-            "password": "rfqa06"
-        }
-
         async with async_playwright() as p:
-            # Запуск браузера с прокси
             browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                proxy=proxy
-            )
+            context = await browser.new_context(proxy={
+                "server": "http://163.5.39.69:2966",
+                "username": "user215587",
+                "password": "rfqa06"
+            })
             page = await context.new_page()
+            await page.goto(image_url, wait_until="load")
 
-            # Открытие страницы с изображением
-            await page.goto(image_url)
-
-            # Получение изображения как скриншот
-            image_bits = await page.locator('img').screenshot()
-
-            # Получаем имя файла изображения
-            image_name = image_url.split("/")[-1]
-
-            # Закрытие браузера
-            await page.close()
+            # Получаем изображение в бинарном виде
+            image_bytes = await page.screenshot()
             await browser.close()
 
-        # Загрузка изображения в WordPress
+        image_name = image_url.split("/")[-1]
         image_data = {
             "name": image_name,
-            "type": "image/jpeg",  # Предположим, что это изображение JPEG
-            "bits": image_bits,
+            "type": "image/jpeg",  
+            "bits": image_bytes,  
         }
 
-        # Загрузка изображения в WordPress
+        # Загружаем изображение в WordPress
         upload_response = wp_client.call(UploadFile(image_data))
 
         return upload_response["id"], upload_response["url"]
 
     except Exception as e:
-        print(f"[ERROR] Ошибка загрузки изображения в WordPress: {e}")
+        logging.error(f"Ошибка загрузки изображения в WordPress: {e}")
         return None, None
-
 
 
 def get_wordpress_post_url(post_id):
