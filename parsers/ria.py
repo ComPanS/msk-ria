@@ -49,7 +49,7 @@ async def parse_page(url):
 
             # Попробуем найти изображение
             image_url = None
-            image_div_locator = page.locator("div.media__size img")
+            image_div_locator = page.locator("div.article__announce img")
 
             # Увеличиваем время ожидания для изображения (например, до 90 секунд)
             try:
@@ -94,7 +94,6 @@ async def process_rss():
             return
 
         title, raw_content, image_url = parsed_data
-        print(f"[DEBUG] ImageUrl: {image_url}")
         print(f"[DEBUG] Заголовок статьи: {title}")
 
         # Если в RSS есть enclosure (изображение), используем его
