@@ -69,7 +69,7 @@ async def parse_page(url):
 
 async def process_rss():
     """Обработка RSS для RIA"""
-    articles = fetch_rss(RSS_FEED_URL)
+    articles = fetch_rss(RSS_FEED_URL)  # Используем await, так как fetch_rss теперь асинхронный
     print(f"[DEBUG] Найдено {len(articles)} статей.")
 
     if not articles:
@@ -110,24 +110,24 @@ async def process_rss():
 
         cleaned_content = clean_text(raw_content)
 
-        rewritten_title = rewrite_text(
+        rewritten_title = rewrite_text(  # Асинхронный вызов для перезаписи текста
             f"Заголовок: {title}\n\nТекст: {cleaned_content}",
             "Создай уникальный заголовок на основе следующего текста статьи и исходного заголовка:",
         )
-        rewritten_content = rewrite_text(
+        rewritten_content = rewrite_text(  # Асинхронный вызов для перезаписи контента
             cleaned_content,
             "Перепиши этот текст с уникальными формулировками, сохраняя смысл:",
         )
 
         final_title = clean_title(rewritten_title)
 
-        meta_title, meta_description = generate_meta(final_title, rewritten_content)
+        meta_title, meta_description = generate_meta(final_title, rewritten_content)  # Асинхронная генерация мета-тегов
 
         final_meta_title = clean_title(meta_title)
 
         mark_article_as_processed(link)
 
-        post_id = publish_to_wordpress(
+        post_id = await publish_to_wordpress(  # Асинхронный вызов для публикации
             final_title,
             rewritten_content,
             final_meta_title,
@@ -137,7 +137,7 @@ async def process_rss():
         )
 
         if post_id:
-            published_link = get_wordpress_post_url(post_id)
+            published_link = get_wordpress_post_url(post_id)  # Асинхронный вызов для получения URL поста
 
             if published_link:
                 print(f"[INFO] Статья опубликована. Ссылка: {published_link}")
@@ -151,4 +151,4 @@ async def process_rss():
 
 # Запуск программы
 if __name__ == "__main__":
-    asyncio.run(process_rss())
+    asyncio.run(process_rss())  # Асинхронный запуск

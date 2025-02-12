@@ -13,6 +13,9 @@ import time
 import asyncio
 import logging
 import urllib3
+from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
+
 
 # Настройка прокси с авторизацией
 PROXY = {
@@ -172,10 +175,10 @@ def get_category_id_by_name(category_name):
         logging.error(f"Ошибка при получении категории: {e}")
         return None
 
-def publish_to_wordpress(
+async def publish_to_wordpress(
     title, content, meta_title, meta_description, category=None, image_url=None
 ):
-    """Публикация на WordPress"""
+    """Публикация на WordPress с учетом асинхронной загрузки изображения"""
     post = WordPressPost()
     post.title = title
     post.content = content
@@ -187,7 +190,7 @@ def publish_to_wordpress(
 
     # Добавление изображения, если оно указано
     if image_url:
-        image_id, _ = upload_image_to_wordpress(image_url)
+        image_id, _ = await upload_image_to_wordpress(image_url)  # Асинхронный вызов
         if image_id:
             post.thumbnail = image_id
     else:
@@ -196,7 +199,7 @@ def publish_to_wordpress(
 
     # Добавление категории, если она указана
     if category:
-        category_id = get_category_id_by_name(category)
+        category_id = get_category_id_by_name(category)  # Асинхронный вызов для категории
         if category_id:
             post.terms_names = {"category": [category]}  # Указываем категорию
         else:
@@ -213,45 +216,58 @@ def publish_to_wordpress(
         return None
 
 
-def upload_image_to_wordpress(image_path):
-    """Загрузка изображения на WordPress через прокси"""
+
+async def upload_image_to_wordpress(image_url):
+    """Загрузка изображения на WordPress через Playwright и прокси (асинхронно)"""
     try:
-        if not image_path:
+        if not image_url:
             print("[DEBUG] Нет изображения для загрузки.")
             return None, None
 
         # Прокси-сервер
-        proxies = {
-            "http": "http://user215587:rfqa06@163.5.39.69:2966",
-            "https": "http://user215587:rfqa06@163.5.39.69:2966",
+        proxy = {
+            "server": "http://163.5.39.69:2966",
+            "username": "user215587",
+            "password": "rfqa06"
         }
 
-        # Загружаем изображение через прокси
-        if not image_path.startswith("http"):
-            with open(image_path, "rb") as img_file:
-                image_bits = img_file.read()
-            image_name = image_path.split("/")[-1]  # Имя файла
-        else:
-            response = requests.get(image_path, proxies=proxies, verify=False)  # Не проверять SSL
-            if response.status_code != 200:
-                print(f"[ERROR] Ошибка загрузки изображения: {response.status_code}")
-                return None, None
-            image_bits = response.content
-            image_name = image_path.split("/")[-1]
+        async with async_playwright() as p:
+            # Запуск браузера с прокси
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                proxy=proxy
+            )
+            page = await context.new_page()
 
+            # Открытие страницы с изображением
+            await page.goto(image_url)
+
+            # Получение изображения как скриншот
+            image_bits = await page.locator('img').screenshot()
+
+            # Получаем имя файла изображения
+            image_name = image_url.split("/")[-1]
+
+            # Закрытие браузера
+            await page.close()
+            await browser.close()
+
+        # Загрузка изображения в WordPress
         image_data = {
             "name": image_name,
-            "type": "image/jpeg",
+            "type": "image/jpeg",  # Предположим, что это изображение JPEG
             "bits": image_bits,
         }
 
         # Загрузка изображения в WordPress
         upload_response = wp_client.call(UploadFile(image_data))
+
         return upload_response["id"], upload_response["url"]
 
     except Exception as e:
         print(f"[ERROR] Ошибка загрузки изображения в WordPress: {e}")
         return None, None
+
 
 
 def get_wordpress_post_url(post_id):
