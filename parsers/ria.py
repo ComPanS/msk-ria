@@ -94,6 +94,7 @@ async def process_rss():
             return
 
         title, raw_content, image_url = parsed_data
+        print(f"[DEBUG] ImageUrl: {image_url}")
         print(f"[DEBUG] Заголовок статьи: {title}")
 
         # Если в RSS есть enclosure (изображение), используем его
