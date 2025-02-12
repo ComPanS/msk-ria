@@ -1,8 +1,7 @@
-import requests
-from bs4 import BeautifulSoup
-from telegram_bot import send_report
 import asyncio
 import random
+from playwright.async_api import async_playwright
+from telegram_bot import send_report
 from utils import (
     fetch_rss,
     is_article_processed,
@@ -16,48 +15,41 @@ from utils import (
     check_and_crop_image
 )
 
+PROXY = "http://user215587:rfqa06@163.5.39.69:2966"
 RSS_FEED_URL = "https://www.moscowtimes.ru/rss/news"
 
 
-def parse_page(url):
-    """Парсинг страницы The Moscow Times"""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Connection": "keep-alive",
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"[ERROR] Ошибка загрузки страницы: {url}")
-        return None
+async def parse_page(url):
+    """Асинхронный парсинг страницы The Moscow Times через Playwright с прокси."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True, proxy={"server": PROXY})
+        page = await browser.new_page()
 
-    soup = BeautifulSoup(response.content, "html.parser")
+        try:
+            await page.goto(url, timeout=20000)  # Увеличенный таймаут
+            await page.wait_for_selector("header.article__header h1", timeout=10000)
 
-    title_tag = soup.find("header", class_="article__header").find("h1")
-    title = title_tag.get_text(strip=True) if title_tag else "Заголовок не найден"
+            title = await page.locator("header.article__header h1").text_content()
+            paragraphs = await page.locator("div.article__content p").all_text_contents()
+            content = "\n\n".join(p.strip() for p in paragraphs)
 
-    content_div = soup.find("div", class_="article__content")
-    paragraphs = content_div.find_all("p") if content_div else []
-    content = "\n\n".join(p.get_text(strip=True) for p in paragraphs)
+            image_url = None
+            image_element = await page.locator("figure.article__featured-image img").first()
+            if await image_element.is_visible():
+                image_url = await image_element.get_attribute("srcset") or await image_element.get_attribute("src")
 
-    image_tag = soup.find("figure", class_="article__featured-image")
-    if image_tag and image_tag.find("img"):
-        img = image_tag.find("img")
-        image_url = img.get("src")
-        srcset = img.get("srcset")
-        if srcset:
-            image_url = srcset.split(",")[0].split(" ")[0].strip()
-        else:
-            image_url = img.get("src")
-    else:
-        image_url = None
+        except Exception as e:
+            print(f"[ERROR] Ошибка загрузки страницы {url}: {e}")
+            return None
+
+        finally:
+            await browser.close()
 
     return title, content, image_url
 
 
-def process_rss():
-    """Обработка RSS для Championat"""
+async def process_rss():
+    """Асинхронная обработка RSS для Moscow Times."""
     articles = fetch_rss(RSS_FEED_URL)
     print(f"[DEBUG] Найдено {len(articles)} статей.")
 
@@ -65,36 +57,32 @@ def process_rss():
         print("[DEBUG] Нет статей для обработки.")
         return
 
-    for i in range(1):
+    for _ in range(1):
         # Выбираем случайную статью
         random_article = random.choice(articles)
         link = random_article["link"]
 
-        while True:
-            if is_article_processed(link):
-                random_article = random.choice(articles)
-                link = random_article["link"]
-                print(f"[DEBUG] Статья уже обработана: {link}")
-                continue
-            break
+        while is_article_processed(link):
+            random_article = random.choice(articles)
+            link = random_article["link"]
+            print(f"[DEBUG] Статья уже обработана: {link}")
 
-        parsed_data = parse_page(link)
+        parsed_data = await parse_page(link)
         if not parsed_data:
             return
 
         title, raw_content, image_url = parsed_data
         print(f"[DEBUG] Заголовок статьи: {title}")
 
-        # Если в RSS есть enclosure (изображение), используем его
+        # Проверка изображения из RSS
         if random_article.get("enclosure"):
             image_url = random_article["enclosure"]
 
         if not image_url:
             mark_article_as_processed(link)
-            i -= 1
             continue
 
-        # Проверка и обрезка изображения
+        # Обрезка изображения
         image_url = check_and_crop_image(image_url)
 
         cleaned_content = clean_text(raw_content)
@@ -109,9 +97,7 @@ def process_rss():
         )
 
         final_title = clean_title(rewritten_title)
-
         meta_title, meta_description = generate_meta(final_title, rewritten_content)
-
         final_meta_title = clean_title(meta_title)
 
         mark_article_as_processed(link)
@@ -127,15 +113,15 @@ def process_rss():
 
         if post_id:
             published_link = get_wordpress_post_url(post_id)
-
             if published_link:
-                asyncio.run(
-                    send_report("Moscow Times Parser", link, published_link, final_title)
-                )
-                mark_article_as_processed(link)
+                await send_report("Moscow Times Parser", link, published_link, final_title)
             else:
-                print(f"[ERROR] Не удалось получить URL для поста с ID: {post_id}")
+                print(f"[ERROR] Не удалось получить URL поста с ID: {post_id}")
         else:
             print(f"[ERROR] Публикация не удалась для статьи: {final_title}")
 
         print()
+
+
+if __name__ == "__main__":
+    asyncio.run(process_rss())

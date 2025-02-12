@@ -6,7 +6,7 @@ from utils import setup_database
 
 setup_database()
 
-PARSERS = [moscowtimes, forklog]
+PARSERS = [moscowtimes]
 
 # def process_all_parsers():
 #     """Запускает обработку для всех парсеров"""
