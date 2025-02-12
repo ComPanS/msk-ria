@@ -1,6 +1,6 @@
 import asyncio
-import random
 from playwright.async_api import async_playwright
+import random
 from utils import (
     fetch_rss,
     is_article_processed,
@@ -13,11 +13,11 @@ from utils import (
     get_wordpress_post_url,
 )
 
+# RSS-канал для загрузки
 RSS_FEED_URL = "https://ria.ru/export/rss2/archive/index.xml"
 
-# Функция для парсинга страницы RIA с использованием Playwright
 async def parse_page(url):
-    """Парсинг страницы RIA"""
+    """Парсинг страницы с использованием Playwright"""
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)  # Запуск в headless-режиме
@@ -27,16 +27,18 @@ async def parse_page(url):
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
             # Получаем title и content
-            title = await page.inner_text("div.article__title")
-            body = await page.locator("div.article__body")
-            paragraphs = await body.locator("div.article__text").all_text_contents()
+            title_locator = page.locator("div.article__title")
+            title = await title_locator.text_content()  # Получаем текст заголовка
+
+            body_locator = page.locator("div.article__body")
+            paragraphs = await body_locator.locator("div.article__text").all_text_contents()  # Все параграфы
             content = "\n\n".join(paragraphs)
 
             # Попробуем найти изображение
             image_url = None
-            image_div = await page.locator("div.media__size img").first()
-            if image_div:
-                image_url = await image_div.get_attribute("src")
+            image_div_locator = page.locator("div.media__size img")
+            if await image_div_locator.count() > 0:  # Проверяем, есть ли изображение
+                image_url = await image_div_locator.get_attribute("src")  # Получаем URL изображения
 
             # Закрываем браузер
             await browser.close()
@@ -46,7 +48,6 @@ async def parse_page(url):
         print(f"[ERROR] Ошибка при парсинге страницы {url}: {e}")
         return None
 
-# Функция для обработки RSS и работы с парсерами
 async def process_rss():
     """Обработка RSS для RIA"""
     articles = fetch_rss(RSS_FEED_URL)
@@ -129,10 +130,6 @@ async def process_rss():
 
         print()
 
-# Запуск асинхронной обработки
-async def main():
-    await process_rss()
-
 # Запуск программы
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(process_rss())
