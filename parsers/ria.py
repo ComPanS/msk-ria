@@ -37,8 +37,12 @@ async def parse_page(url):
             # Попробуем найти изображение
             image_url = None
             image_div_locator = page.locator("div.media__size img")
-            if await image_div_locator.count() > 0:  # Проверяем, есть ли изображение
-                image_url = await image_div_locator.get_attribute("src")  # Получаем URL изображения
+            try:
+                await image_div_locator.wait_for(timeout=60000)  # 90 секунд для загрузки изображения
+                if await image_div_locator.count() > 0:  # Проверяем, есть ли изображение
+                    image_url = await image_div_locator.get_attribute("src")  # Получаем URL изображения
+            except Exception as e:
+                print(f"[WARNING] Не удалось загрузить изображение: {e}")
 
             # Закрываем браузер
             await browser.close()
