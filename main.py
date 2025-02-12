@@ -1,34 +1,29 @@
 import schedule
 import time
+import asyncio
 from datetime import datetime, time as dt_time
-from parsers import ria, moscowtimes, habr, stopgame, championat, forklog
+from parsers import moscowtimes
 from utils import setup_database
 
+# Инициализация базы данных
 setup_database()
 
+# Список парсеров
 PARSERS = [moscowtimes]
-
-# def process_all_parsers():
-#     """Запускает обработку для всех парсеров"""
-#     for parser in PARSERS:
-#         print(f"Запуск парсера: {parser.__name__}")
-#         parser.process_rss()
-#         print("-------------------------------------------------------\n")
-
-# process_all_parsers()
-# schedule.every(5).minutes.do(process_all_parsers)
 
 # Счетчик выполнений
 execution_count = 0
-MAX_EXECUTIONS = 5  # Максимальное количество выполнений
+MAX_EXECUTIONS = 5  # Максимальное количество запусков за день
 
-# Индекс текущего парсера
-current_parser_index = 0
+# Функция для запуска одного парсера
+async def run_parser(parser):
+    """Асинхронный запуск парсера"""
+    await parser.process_rss()
 
-
-def process_all_parsers():
+# Функция для запуска всех парсеров
+async def process_all_parsers():
     """Запускает обработку для всех парсеров"""
-    global execution_count, current_parser_index
+    global execution_count
 
     # Если достигнуто максимальное количество выполнений, останавливаемся
     if execution_count >= MAX_EXECUTIONS:
@@ -37,29 +32,28 @@ def process_all_parsers():
 
     for parser in PARSERS:
         print(f"Запуск парсера: {parser.__name__}")
-        parser.process_rss()
+        await run_parser(parser)  # Ожидание выполнения парсера
         print("----\n")
 
     execution_count += 1
     print("-------------------------------------------------------\n")
     print(f"Выполнено запусков: {execution_count}/{MAX_EXECUTIONS}")
 
-
+# Проверка, находится ли текущее время в интервале
 def is_time_between(start_time, end_time):
     """Проверяет, находится ли текущее время в заданном интервале"""
     now = datetime.now().time()
     return start_time <= now <= end_time
 
-
+# Сброс счетчика выполнений в случае выхода за временной интервал
 def reset_counter_if_outside_interval():
-    """Сбрасывает счетчик, если текущее время вне интервала 8:00 - 23:00"""
-    global execution_count, current_parser_index
+    """Сбрасывает счетчик, если текущее время вне интервала 8:00 - 20:00"""
+    global execution_count
     if not is_time_between(dt_time(8, 0), dt_time(20, 0)):
         execution_count = 0
-        current_parser_index = 0
         print("Счетчик выполнений сброшен (вне интервала 8:00 - 20:00).")
 
-
+# Функция для выполнения задачи по расписанию
 def scheduled_task():
     """Задача, которая выполняется только в указанном временном интервале и не более MAX_EXECUTIONS раз"""
     global execution_count
@@ -74,17 +68,20 @@ def scheduled_task():
 
     # Если время в интервале, запускаем обработку парсеров
     if is_time_between(dt_time(8, 0), dt_time(20, 0)):
-        process_all_parsers()
+        asyncio.run(process_all_parsers())  # Запускаем асинхронную обработку
     else:
         print("Сейчас не время для работы парсеров (8:00 - 20:00 МСК).")
 
+# Первый запуск перед расписанием
+asyncio.run(process_all_parsers())
 
-# Настройка расписания
-process_all_parsers()
+# Настройка расписания на выполнение каждые 2 часа
 schedule.every(2).hours.do(scheduled_task)
 
 print("Запуск мониторинга RSS...\n")
 print("-------------------------------------------------------\n")
+
+# Бесконечный цикл для работы schedule
 while True:
     schedule.run_pending()
     time.sleep(1)
