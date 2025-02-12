@@ -13,6 +13,12 @@ from utils import (
     get_wordpress_post_url,
 )
 
+# Настройки прокси
+PROXY_HOST = "163.5.39.69"
+PROXY_PORT = 2966
+PROXY_USERNAME = "user215587"
+PROXY_PASSWORD = "rfqa06"
+
 # RSS-канал для загрузки
 RSS_FEED_URL = "https://ria.ru/export/rss2/archive/index.xml"
 
@@ -20,7 +26,14 @@ async def parse_page(url):
     """Парсинг страницы с использованием Playwright"""
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)  # Запуск в headless-режиме
+            browser = await p.chromium.launch(
+                headless=True,  # Запуск в headless-режиме
+                proxy={
+                    "server": f"http://{PROXY_HOST}:{PROXY_PORT}",
+                    "username": PROXY_USERNAME,
+                    "password": PROXY_PASSWORD
+                }
+            )  # Запуск браузера с прокси
             page = await browser.new_page()
 
             # Загружаем страницу
