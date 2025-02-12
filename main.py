@@ -9,7 +9,7 @@ from utils import setup_database
 setup_database()
 
 # Список парсеров
-PARSERS = [ria]
+PARSERS = [moscowtimes]
 
 # Счетчик выполнений
 execution_count = 0
