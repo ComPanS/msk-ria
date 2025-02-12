@@ -2,14 +2,14 @@ import schedule
 import time
 import asyncio
 from datetime import datetime, time as dt_time
-from parsers import moscowtimes
+from parsers import ria, moscowtimes, habr, stopgame, championat, forklog
 from utils import setup_database
 
 # Инициализация базы данных
 setup_database()
 
 # Список парсеров
-PARSERS = [moscowtimes]
+PARSERS = [ria]
 
 # Счетчик выполнений
 execution_count = 0

@@ -5,6 +5,6 @@ DB_NAME = r'DB'
 WP_URL = 'https://sgzt.com/xmlrpc.php'
 WP_USERNAME = 'rimmaruslan98@gmail.com'
 WP_PASSWORD = ':Qs00u55'
-openai_api_key = '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'
+openai_api_key = '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'
 TELEGRAM_BOT_TOKEN = "7091373217:AAG9cIbfToq5SKqcQzBeKByniBGxNePLlA0"
 TELEGRAM_CHAT_ID = "1911446924" 
